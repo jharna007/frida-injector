@@ -42,7 +42,16 @@ jobs:
 
       - name: Create Frida Gadget Configuration File (Listen Only)
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
+          cat <<EOF > frida-gadget.config
+          {
+            "interaction": {
+              "type": "listen",
+              "address": "0.0.0.0",
+              "port": 27042,
+              "on_port_collision": "fallback"
+            }
+          }
+          EOF
 
       - name: Download APK from Hardcoded URL
         run: |
@@ -52,7 +61,6 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # The command no longer includes the --js flag
           frida-gadget original.apk --arch arm64 --no-res --sign --config frida-gadget.config
 
       - name: Upload Frida Patched APK
