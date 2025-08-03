@@ -1,4 +1,4 @@
-name: Frida Gadget Injector (Full Automation - Direct)
+name: Frida Gadget Injector (Full Automation - Uber)
 
 on:
   # This workflow will run automatically whenever code is pushed to your repository.
@@ -49,38 +49,30 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # The previous attempt failed, so we're now skipping resource compilation entirely as recommended.
           frida-gadget original.apk --arch arm64 --no-res
           echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
-      - name: Set up Android SDK for apksigner
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 30
-          ndk: 23.1.7779620
-          
-      - name: Generate Keystore for Signing
+      - name: Download Uber APK Signer
         run: |
-          KEYSTORE_PASS="mysecurepassword" # <--- REPLACE THIS WITH YOUR PASSWORD
-          KEY_ALIAS="mykey"
+          UBER_SIGNER_URL="https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
+          curl -L -o uber-apk-signer.jar "$UBER_SIGNER_URL"
           
-          keytool -genkey -v -keystore my-release-key.jks \
-          -storepass "$KEYSTORE_PASS" \
-          -keyalg RSA \
-          -keysize 2048 \
-          -validity 10000 \
-          -alias "$KEY_ALIAS" \
-          -dname "CN=Frida Patch, OU=CI/CD, O=Automation, L=GitHub, S=Actions, C=US" \
-          -keypass "$KEYSTORE_PASS"
-          
-      - name: Sign the Patched APK
+      - name: Sign the Patched APK with Uber
         id: sign_apk
         run: |
-          KEYSTORE_PASS="mysecurepassword" # <--- REPLACE THIS WITH YOUR PASSWORD
-          apksigner sign --ks my-release-key.jks --ks-pass pass:"$KEYSTORE_PASS" --out "frida-patched-signed.apk" "$PATCHED_APK"
+          java -jar uber-apk-signer.jar --apks "$PATCHED_APK" --out signed_apks
+          echo "SIGNED_APK_PATH=signed_apks/original-patched-aligned-debugSigned.apk" >> $GITHUB_ENV
           
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk
-          path: frida-patched-signed.apk
+          path: signed_apks/*-aligned-debugSigned.apk
+
+      - name: Upload Unsigned APK on Failure
+        # This step will only run if the 'sign_apk' step fails.
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-injected-apk-unsigned
+          path: "$PATCHED_APK"
