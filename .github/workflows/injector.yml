@@ -1,16 +1,15 @@
-name: Frida Gadget Injector (Full Automation - Direct)
+name: Frida Gadget Injector (Interaction Only)
 
 on:
-  # This workflow will run automatically whenever code is pushed to your repository.
   push:
     branches:
-      - main  # You can change this to your default branch if it's not 'main'
+      - main
 
 jobs:
   patch-apk:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Allows writing to the repository for artifacts.
+      contents: write
 
     steps:
       - name: Checkout Repository
@@ -41,8 +40,7 @@ jobs:
           echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
           sudo chmod +x /usr/local/bin/apktool
 
-      - name: Create Frida Gadget Configuration File
-        # Creates a simple config file with only the interaction section.
+      - name: Create Frida Gadget Configuration File (Listen Only)
         run: |
           echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
 
@@ -54,8 +52,8 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # The command now uses both flags to correctly handle the config and the script file.
-          frida-gadget original.apk --arch arm64 --no-res --sign --config frida-gadget.config --js ssl_unpinning.js
+          # The command no longer includes the --js flag
+          frida-gadget original.apk --arch arm64 --no-res --sign --config frida-gadget.config
 
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
