@@ -49,25 +49,25 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          frida-gadget original.apk --arch arm64 --no-res
-          echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
+          frida-gadget original.apk --arch arm64 --no-res --sign
+#          echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
-      - name: Download Uber APK Signer
-        run: |
-          UBER_SIGNER_URL="https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
-          curl -L -o uber-apk-signer.jar "$UBER_SIGNER_URL"
+#      - name: Download Uber APK Signer
+ #       run: |
+  #        UBER_SIGNER_URL="https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
+   #       curl -L -o uber-apk-signer.jar "$UBER_SIGNER_URL"
           
-      - name: Sign the Patched APK with Uber
-        id: sign_apk
-        run: |
-          java -jar uber-apk-signer.jar --apks "$PATCHED_APK" --out signed_apks
-          echo "SIGNED_APK_PATH=signed_apks/original-patched-aligned-debugSigned.apk" >> $GITHUB_ENV
+    #  - name: Sign the Patched APK with Uber
+     #   id: sign_apk
+      #  run: |
+       #   java -jar uber-apk-signer.jar --apks "$PATCHED_APK" --out signed_apks
+        #  echo "SIGNED_APK_PATH=signed_apks/original-patched-aligned-debugSigned.apk" >> $GITHUB_ENV
           
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk
-          path: signed_apks/*-aligned-debugSigned.apk
+          path: original-patched.apk
 
       - name: Upload Unsigned APK on Failure
         # This step will only run if the 'sign_apk' step fails.
@@ -75,4 +75,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk-unsigned
-          path: "$PATCHED_APK"
+          path: original-patched.apk
