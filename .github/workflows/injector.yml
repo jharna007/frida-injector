@@ -40,11 +40,11 @@ jobs:
           echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
           echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
           sudo chmod +x /usr/local/bin/apktool
-          
+
       - name: Create Frida Gadget Configuration File
-        # This creates the configuration file for the gadget, with a fallback port.
+        # Creates a simple config file with only the interaction section.
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"},"script":{"path":"ssl_unpinning.js","on_change":"reload"}}' > frida-gadget.config
+          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
 
       - name: Download APK from Hardcoded URL
         run: |
@@ -54,8 +54,8 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # The --js flag is now removed, as the config file handles it.
-          frida-gadget original.apk --arch arm64 --no-res --sign --config frida-gadget.config
+          # The command now uses both flags to correctly handle the config and the script file.
+          frida-gadget original.apk --arch arm64 --no-res --sign --config frida-gadget.config --js ssl_unpinning.js
 
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
