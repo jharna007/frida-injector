@@ -48,7 +48,7 @@ jobs:
         run: |
           echo "APK_URL=${{ github.event.inputs.apk_url }}" >> $GITHUB_ENV
           # Use curl to download the file and name it 'original.apk'
-          curl -L -o original.apk "https://files.catbox.moe/qswufu.apk⏎"
+          curl -L -o original.apk "$APK_URL"
           
       - name: Run Frida Gadget injection
         id: frida_inject
@@ -57,7 +57,8 @@ jobs:
           echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
       - name: Set up Android SDK for apksigner
-        uses: actions/setup-android@v3
+        # This is the corrected action name
+        uses: android-actions/setup-android@v3
         with:
           api-level: 30
           ndk: 23.1.7779620
@@ -93,4 +94,3 @@ jobs:
         with:
           name: frida-injected-apk
           path: frida-patched-signed.apk
-
