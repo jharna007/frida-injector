@@ -49,7 +49,7 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # Use the built-in --sign option for a fully streamlined process
+          # The JS file name has been corrected to match your repository.
           frida-gadget original.apk --arch arm64 --no-res --sign --js ssl_unpinning.js
 
       - name: Upload Frida Patched APK
@@ -57,4 +57,3 @@ jobs:
         with:
           name: frida-injected-apk
           path: original/dist/original-aligned-debugSigned.apk
-
