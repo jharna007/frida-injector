@@ -1,0 +1,96 @@
+name: Frida Gadget Injector (Full Automation)
+
+on:
+  # Allows you to run this workflow manually from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'Direct download URL for the APK file'
+        required: true
+        type: string
+        
+jobs:
+  patch-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allows writing to the repository for artifacts.
+      
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java and Python
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install Python dependencies (frida-gadget)
+        run: |
+          pip install frida-gadget
+          
+      - name: Install apktool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-jdk
+          wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
+          chmod +x apktool.jar
+          sudo mv apktool.jar /usr/local/bin/apktool.jar
+          echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
+          echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
+          sudo chmod +x /usr/local/bin/apktool
+
+      - name: Download APK from URL
+        run: |
+          echo "APK_URL=${{ github.event.inputs.apk_url }}" >> $GITHUB_ENV
+          # Use curl to download the file and name it 'original.apk'
+          curl -L -o original.apk "https://files.catbox.moe/qswufu.apk⏎"
+          
+      - name: Run Frida Gadget injection
+        id: frida_inject
+        run: |
+          frida-gadget original.apk --arch arm64
+          echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
+
+      - name: Set up Android SDK for apksigner
+        uses: actions/setup-android@v3
+        with:
+          api-level: 30
+          ndk: 23.1.7779620
+
+      - name: Generate Random Keystore Password
+        # This creates a secure, temporary password for the keystore.
+        # It is only valid for the duration of this workflow run.
+        run: |
+          echo "KEYSTORE_PASS=$(openssl rand -base64 16)" >> $GITHUB_ENV
+          
+      - name: Generate Keystore for Signing
+        run: |
+          # Passwords are read from the temporary environment variable.
+          KEY_ALIAS="mykey"
+          
+          # Run keytool to generate the keystore file.
+          keytool -genkey -v -keystore my-release-key.jks \
+          -storepass "$KEYSTORE_PASS" \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -alias "$KEY_ALIAS" \
+          -dname "CN=Frida Patch, OU=CI/CD, O=Automation, L=GitHub, S=Actions, C=US" \
+          -keypass "$KEYSTORE_PASS"
+          
+      - name: Sign the Patched APK
+        id: sign_apk
+        run: |
+          apksigner sign --ks my-release-key.jks --ks-pass pass:"$KEYSTORE_PASS" --out "frida-patched-signed.apk" "$PATCHED_APK"
+          
+      - name: Upload Frida Patched APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-injected-apk
+          path: frida-patched-signed.apk
+
