@@ -52,11 +52,20 @@ jobs:
             }
           }
           EOF
-
+          
       - name: Download APK from Hardcoded URL
         run: |
           APK_URL="https://files.catbox.moe/qswufu.apk" # <--- REPLACE THIS WITH YOUR APK URL
           curl -L -o original.apk "$APK_URL"
+
+      - name: **[DIAGNOSTIC] Check Filesystem Before Injection**
+        run: |
+          echo "Listing files in current directory:"
+          ls -l
+          echo "---"
+          echo "Contents of frida-gadget.config:"
+          cat frida-gadget.config
+          echo "---"
 
       - name: Run Frida Gadget injection
         id: frida_inject
