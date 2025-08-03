@@ -42,17 +42,8 @@ jobs:
 
       - name: Create Frida Gadget Configuration File (Listen Only)
         run: |
-          cat <<EOF > frida-gadget.config
-          {
-            "interaction": {
-              "type": "listen",
-              "address": "0.0.0.0",
-              "port": 27042,
-              "on_port_collision": "fallback"
-            }
-          }
-          EOF
-          
+          echo '{ "interaction": { "type": "listen", "address": "0.0.0.0", "port": 27042, "on_port_collision": "fallback" } }' > frida-gadget.config
+
       - name: Download APK from Hardcoded URL
         run: |
           APK_URL="https://files.catbox.moe/qswufu.apk" # <--- REPLACE THIS WITH YOUR APK URL
