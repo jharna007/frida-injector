@@ -43,6 +43,15 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+
+      - name: Create Debug Keystore
+        run: |
+          mkdir -p ~/.android/
+          keytool -genkeypair -v -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -keyalg RSA -keysize 2048 -validity 10000
+
       - name: Create Frida Gadget Configuration File
         run: |
           echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
