@@ -1,14 +1,11 @@
-name: Frida Gadget Injector (Full Automation)
+name: Frida Gadget Injector (Full Automation - Direct)
 
 on:
-  # Allows you to run this workflow manually from the Actions tab.
-  workflow_dispatch:
-    inputs:
-      apk_url:
-        description: 'Direct download URL for the APK file'
-        required: true
-        type: string
-        
+  # This workflow will run automatically whenever code is pushed to your repository.
+  push:
+    branches:
+      - main  # You can change this to your default branch if it's not 'main'
+
 jobs:
   patch-apk:
     runs-on: ubuntu-latest
@@ -44,10 +41,9 @@ jobs:
           echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
           sudo chmod +x /usr/local/bin/apktool
 
-      - name: Download APK from URL
+      - name: Download APK from Hardcoded URL
         run: |
-          echo "APK_URL=${{ github.event.inputs.apk_url }}" >> $GITHUB_ENV
-          # Use curl to download the file and name it 'original.apk'
+          APK_URL="https://files.catbox.moe/qswufu.apk" # <--- REPLACE THIS WITH YOUR APK URL
           curl -L -o original.apk "$APK_URL"
           
       - name: Run Frida Gadget injection
@@ -57,24 +53,17 @@ jobs:
           echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
       - name: Set up Android SDK for apksigner
-        # This is the corrected action name
         uses: android-actions/setup-android@v3
         with:
           api-level: 30
           ndk: 23.1.7779620
-
-      - name: Generate Random Keystore Password
-        # This creates a secure, temporary password for the keystore.
-        # It is only valid for the duration of this workflow run.
-        run: |
-          echo "KEYSTORE_PASS=$(openssl rand -base64 16)" >> $GITHUB_ENV
           
       - name: Generate Keystore for Signing
         run: |
-          # Passwords are read from the temporary environment variable.
+          # The password is hardcoded here, as requested.
+          KEYSTORE_PASS="mysecurepassword" # <--- REPLACE THIS WITH YOUR PASSWORD
           KEY_ALIAS="mykey"
           
-          # Run keytool to generate the keystore file.
           keytool -genkey -v -keystore my-release-key.jks \
           -storepass "$KEYSTORE_PASS" \
           -keyalg RSA \
@@ -87,6 +76,7 @@ jobs:
       - name: Sign the Patched APK
         id: sign_apk
         run: |
+          KEYSTORE_PASS="mysecurepassword" # <--- REPLACE THIS WITH YOUR PASSWORD
           apksigner sign --ks my-release-key.jks --ks-pass pass:"$KEYSTORE_PASS" --out "frida-patched-signed.apk" "$PATCHED_APK"
           
       - name: Upload Frida Patched APK
