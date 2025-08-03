@@ -50,11 +50,11 @@ jobs:
         id: frida_inject
         run: |
           # Use the built-in --sign option for a fully streamlined process
-          frida-gadget original.apk --arch arm64 --no-res --sign
+          frida-gadget original.apk --arch arm64 --no-res --sign --js ssl_unpinning.js
 
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk
-          # The path now points to the final, signed APK as named by frida-gadget
           path: original/dist/original-aligned-debugSigned.apk
+
