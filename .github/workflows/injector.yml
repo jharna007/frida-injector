@@ -45,7 +45,7 @@ jobs:
           echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
       - name: Download APK from Hardcoded URL
         run: |
-          APK_URL="https://files.catbox.moe/uzl6jg.apk⏎" # <--- REPLACE THIS WITH YOUR APK URL
+          APK_URL="https://files.catbox.moe/uzl6jg.apk" # <--- REPLACE THIS WITH YOUR APK URL
           curl -L -o original.apk "$APK_URL"
       - name: Run Frida Gadget injection
         id: frida_inject
