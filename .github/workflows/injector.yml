@@ -1,4 +1,4 @@
-name: Frida Gadget Injector (Full Automation - Uber)
+name: Frida Gadget Injector (Full Automation - Direct)
 
 on:
   # This workflow will run automatically whenever code is pushed to your repository.
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # Allows writing to the repository for artifacts.
-      
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,11 +25,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
+
       - name: Install Python dependencies (frida-gadget)
         run: |
           pip install frida-gadget
-          
+
       - name: Install apktool
         run: |
           sudo apt-get update
@@ -45,34 +45,16 @@ jobs:
         run: |
           APK_URL="https://files.catbox.moe/qswufu.apk" # <--- REPLACE THIS WITH YOUR APK URL
           curl -L -o original.apk "$APK_URL"
-          
+
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
+          # Use the built-in --sign option for a fully streamlined process
           frida-gadget original.apk --arch arm64 --no-res --sign
-#          echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
-#      - name: Download Uber APK Signer
- #       run: |
-  #        UBER_SIGNER_URL="https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar"
-   #       curl -L -o uber-apk-signer.jar "$UBER_SIGNER_URL"
-          
-    #  - name: Sign the Patched APK with Uber
-     #   id: sign_apk
-      #  run: |
-       #   java -jar uber-apk-signer.jar --apks "$PATCHED_APK" --out signed_apks
-        #  echo "SIGNED_APK_PATH=signed_apks/original-patched-aligned-debugSigned.apk" >> $GITHUB_ENV
-          
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk
-          path: original-patched.apk
-
-      - name: Upload Unsigned APK on Failure
-        # This step will only run if the 'sign_apk' step fails.
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frida-injected-apk-unsigned
-          path: original-patched.apk
+          # The path now points to the final, signed APK as named by frida-gadget
+          path: original/dist/original-aligned-debugSigned.apk
