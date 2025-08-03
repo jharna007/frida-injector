@@ -49,7 +49,8 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          frida-gadget original.apk --arch arm64
+          # Added the recommended recompile option to fix the apktool error
+          frida-gadget original.apk --arch arm64 --recompile-opts "--use-aapt2"
           echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
       - name: Set up Android SDK for apksigner
@@ -60,7 +61,6 @@ jobs:
           
       - name: Generate Keystore for Signing
         run: |
-          # The password is hardcoded here, as requested.
           KEYSTORE_PASS="mysecurepassword" # <--- REPLACE THIS WITH YOUR PASSWORD
           KEY_ALIAS="mykey"
           
