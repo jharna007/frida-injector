@@ -49,8 +49,8 @@ jobs:
       - name: Run Frida Gadget injection
         id: frida_inject
         run: |
-          # Added the recommended recompile option to fix the apktool error
-          frida-gadget original.apk --arch arm64 --recompile-opts "--use-aapt2"
+          # The previous attempt failed, so we're now skipping resource compilation entirely as recommended.
+          frida-gadget original.apk --arch arm64 --no-res
           echo "PATCHED_APK=original-patched.apk" >> $GITHUB_ENV
 
       - name: Set up Android SDK for apksigner
