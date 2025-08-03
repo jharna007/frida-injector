@@ -25,15 +25,12 @@ jobs:
         with:
           python-version: '3.10'
 
-      # Install Android SDK to get zipalign and apksigner
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Python dependencies (frida-gadget)
+      - name: Install Dependencies
         run: |
+          # Install Python dependencies
           pip install frida-gadget
-      - name: Install apktool
-        run: |
+
+          # Install apktool and its dependencies
           sudo apt-get update
           sudo apt-get install -y default-jdk
           wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
@@ -42,7 +39,10 @@ jobs:
           echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
           echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
           sudo chmod +x /usr/local/bin/apktool
-          
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Create Frida Gadget Configuration File
         run: |
           echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
@@ -55,30 +55,31 @@ jobs:
       - name: Run Frida Gadget injection (without signing)
         id: frida_inject
         run: |
-          # The --sign flag is removed here.
+          # The --sign flag is removed. frida-gadget now produces an unsigned APK.
           frida-gadget original.apk --arch arm64 --no-res --config frida-gadget.config --js ssl_unpinning.js
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
         run: |
           # The Android SDK sets up the ANDROID_HOME environment variable
-          BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0" # <-- You may need to update this to the latest version
-
+          BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
+          
+          # The output filename from frida-gadget when --sign is not used
+          UNALIGNED_APK="original/dist/original.apk"
+          ALIGNED_APK="original/dist/original-aligned.apk"
+          
           # Zipalign the APK first
-          "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 "original/dist/original-aligned.apk"
-
-          # Sign the APK with the official apksigner
-          # This uses the Android debug key, which is automatically generated
-          # in the CI runner's environment.
+          "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 "${UNALIGNED_APK}" "${ALIGNED_APK}"
+          
+          # Sign the aligned APK with the official apksigner
           "${BUILD_TOOLS_PATH}/apksigner" sign --ks "${HOME}/.android/debug.keystore" \
             --ks-pass pass:android --key-pass pass:android \
             --v1-signing-enabled true --v2-signing-enabled true \
-            "original/dist/original-aligned.apk"
-          
+            "${ALIGNED_APK}"
+
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
           name: frida-injected-apk
           path: original/dist/original-aligned.apk
-
 
