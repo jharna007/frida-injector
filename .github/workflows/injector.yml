@@ -54,11 +54,11 @@ jobs:
 
       - name: Create Frida Gadget Configuration File
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_port_collision":"fallback"}}' > frida-gadget.config
+          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27043,"on_port_collision":"fallback"}}' > frida-gadget.config
 
       - name: Download APK from Hardcoded URL
         run: |
-          APK_URL="https://files.catbox.moe/t7b2t0.apk"
+          APK_URL="https://files.catbox.moe/v3a2na.apk"
           curl -L -o original.apk "$APK_URL"
 
       - name: Run Frida Gadget injection (without signing)
