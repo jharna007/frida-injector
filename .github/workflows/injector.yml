@@ -65,7 +65,7 @@ jobs:
         id: frida_inject
         run: |
           # The --sign flag is removed. frida-gadget now produces an unsigned APK.
-          frida-gadget original.apk --arch arm64 --js ssl_unpinning.js --config frida-gadget.config
+          frida-gadget original.apk --arch arm64 --decompile-opts="-resm remove" --js ssl_unpinning.js  --config frida-gadget.config
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
