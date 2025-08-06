@@ -54,7 +54,7 @@ jobs:
 
       - name: Create Frida Gadget Configuration File
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27044,"on_port_collision":"fallback"}}' > frida-gadget.config
+          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27044,"on_port_collision":"fallback"},"runtime":{"path":"/data/local/tmp/ssl_unpinning.js"}}' > frida-gadget.config
 
       - name: Download APK from Hardcoded URL
         run: |
