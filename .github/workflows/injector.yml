@@ -33,7 +33,7 @@ jobs:
           # Install apktool and its dependencies
           sudo apt-get update
           sudo apt-get install -y default-jdk
-          wget https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O apktool.jar
+          wget https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar -O apktool.jar
           chmod +x apktool.jar
           sudo mv apktool.jar /usr/local/bin/apktool.jar
           echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
@@ -65,7 +65,7 @@ jobs:
         id: frida_inject
         run: |
           # The --sign flag is removed. frida-gadget now produces an unsigned APK.
-          frida-gadget original.apk --arch arm64 --config frida-gadget.config
+          frida-gadget original.apk --arch arm64 --js ssl_unpinning.js --config frida-gadget.config
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
