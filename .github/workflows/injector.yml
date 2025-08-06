@@ -65,21 +65,21 @@ jobs:
         id: frida_inject
         run: |
           # The --sign flag is removed. frida-gadget now produces an unsigned APK.
-          frida-gadget original.apk --arch arm64 --no-res --config frida-gadget.config --js ssl_unpinning.js
+          frida-gadget original.apk --arch arm64 --config frida-gadget.config
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
         run: |
           # The Android SDK sets up the ANDROID_HOME environment variable
           BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
-          
+
           # The output filename from frida-gadget when --sign is not used
           UNALIGNED_APK="original/dist/original.apk"
           ALIGNED_APK="original/dist/original-aligned.apk"
-          
+
           # Zipalign the APK first
           "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 "${UNALIGNED_APK}" "${ALIGNED_APK}"
-          
+
           # Sign the aligned APK with the official apksigner
           "${BUILD_TOOLS_PATH}/apksigner" sign --ks "${HOME}/.android/debug.keystore" \
             --ks-pass pass:android --key-pass pass:android \
