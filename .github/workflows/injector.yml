@@ -58,7 +58,7 @@ jobs:
 
       - name: Download APK from Hardcoded URL
         run: |
-          APK_URL="https://files.catbox.moe/5cepgs.apk"
+          APK_URL="https://files.catbox.moe/idaccb.apk"
           curl -L -o original.apk "$APK_URL"
 
       - name: Run Frida Gadget injection (without signing)
