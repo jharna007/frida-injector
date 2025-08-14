@@ -58,7 +58,7 @@ jobs:
 
       - name: Download APK from Hardcoded URL
         run: |
-          APK_URL="https://files.catbox.moe/2326p1.apk"
+          APK_URL="https://github.com/kaifcodec/Upload_apk/releases/download/v1.1.6/instagram.apk"
           curl -L -o original.apk "$APK_URL"
 
       - name: Run Frida Gadget injection (without signing)
@@ -67,11 +67,11 @@ jobs:
           # The --sign flag is removed. frida-gadget now produces an unsigned APK.
           frida-gadget original.apk --arch arm64 --js ssl_unpinning.js  --config frida-gadget.config
 
-      - name: Upload Frida Patched APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: frida-injected-unsigned-apk
-          path: original/dist/original.apk
+      #- name: Upload Frida Patched APK
+#        uses: actions/upload-artifact@v4
+ #       with:
+  #        name: frida-injected-unsigned-apk
+   #       path: original/dist/original.apk
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
@@ -97,4 +97,5 @@ jobs:
         with:
           name: frida-injected-signed-apk
           path: original/dist/original-aligned.apk
+
 
