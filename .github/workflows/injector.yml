@@ -65,7 +65,13 @@ jobs:
         id: frida_inject
         run: |
           # The --sign flag is removed. frida-gadget now produces an unsigned APK.
-          frida-gadget original.apk --arch arm64 --js ssl_unpinning.js  --config frida-gadget.config
+          frida-gadget original_unsigned.apk --arch arm64 --js ssl_unpinning.js  --config frida-gadget.config
+
+      - name: Upload Frida Patched APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: frida-injected-apk
+          path: original/dist/original_unsigned.apk
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
@@ -74,7 +80,7 @@ jobs:
           BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
 
           # The output filename from frida-gadget when --sign is not used
-          UNALIGNED_APK="original/dist/original.apk"
+          UNALIGNED_APK="original/dist/original_unsigned.apk"
           ALIGNED_APK="original/dist/original-aligned.apk"
 
           # Zipalign the APK first
