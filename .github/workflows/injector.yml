@@ -70,7 +70,7 @@ jobs:
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
-          name: frida-injected-apk
+          name: frida-injected-unsigned-apk
           path: original/dist/original_unsigned.apk
 
       - name: Align and Sign the APK with Official Tools
@@ -95,6 +95,6 @@ jobs:
       - name: Upload Frida Patched APK
         uses: actions/upload-artifact@v4
         with:
-          name: frida-injected-apk
+          name: frida-injected-signed-apk
           path: original/dist/original-aligned.apk
 
