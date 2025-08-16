@@ -43,7 +43,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-
       - name: Create Debug Keystore
         run: |
           mkdir -p ~/.android/
@@ -54,7 +53,7 @@ jobs:
 
       - name: Create Frida Gadget Configuration File
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_load":"resume"},"runtime":{"spawn":"main","path":"libssl-unpinning.js.so"},"fallback":{"enabled":true,"interval":1000}}' > frida-gadget.config
+          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_load":"resume"},"runtime":{"spawn":"main","path":"libssl-unpinning.js.so"},"fallback":{"enabled":true,"interval":1000}}' > fg.con
 
       - name: Download APK from Hardcoded URL
         run: |
@@ -64,29 +63,22 @@ jobs:
       - name: Run Frida Gadget injection (without signing)
         id: frida_inject
         run: |
-          # The --sign flag is removed. frida-gadget now produces an unsigned APK.
-          frida-gadget original.apk --arch arm64 --js ssl_unpinning.js  --config frida-gadget.config
-
-      #- name: Upload Frida Patched APK
-#        uses: actions/upload-artifact@v4
- #       with:
-  #        name: frida-injected-unsigned-apk
-   #       path: original/dist/original.apk
+          frida-gadget original.apk \
+            --arch arm64 \
+            --js ssl_unpinning.js \
+            --config fg.con \
+            --custom-gadget-name stealth0.so
 
       - name: Align and Sign the APK with Official Tools
         id: sign_apk
         run: |
-          # The Android SDK sets up the ANDROID_HOME environment variable
           BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
 
-          # The output filename from frida-gadget when --sign is not used
           UNALIGNED_APK="original/dist/original.apk"
           ALIGNED_APK="original/dist/original-aligned.apk"
 
-          # Zipalign the APK first
           "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 "${UNALIGNED_APK}" "${ALIGNED_APK}"
 
-          # Sign the aligned APK with the official apksigner
           "${BUILD_TOOLS_PATH}/apksigner" sign --ks "${HOME}/.android/debug.keystore" \
             --ks-pass pass:android --key-pass pass:android \
             --v1-signing-enabled true --v2-signing-enabled true \
@@ -97,5 +89,3 @@ jobs:
         with:
           name: frida-injected-signed-apk
           path: original/dist/original-aligned.apk
-#
-
