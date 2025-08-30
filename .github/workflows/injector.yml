@@ -84,28 +84,17 @@ jobs:
           set -euo pipefail
           ABI_DIR="original/lib/arm64-v8a"
           mkdir -p "$ABI_DIR"
-
+          
           frida-gadget --dump --arch arm64 --output gadget-out
           GADGET_SO="$(find gadget-out -type f -name '*arm64*.so' | head -n 1)"
           if [ -z "${GADGET_SO:-}" ]; then
             echo "Could not find arm64 gadget .so"; exit 1
           fi
           cp "$GADGET_SO" "$ABI_DIR/libigloader.so"
-
-          cat <<'EOF' > "$ABI_DIR/libpayload.js.so"
-console.log('[gadget] payload loaded');
-EOF
-
-          cat <<'JSON' > "$ABI_DIR/libigloader.config.so"
-{
-  "interaction": {
-    "type": "script",
-    "path": "libpayload.js.so",
-    "on_change": "ignore"
-  },
-  "runtime": { "spawn": "main" }
-}
-JSON
+          
+          echo "console.log('[gadget] payload loaded');" > "$ABI_DIR/libpayload.js.so"
+          
+          printf '{\n  "interaction": {\n    "type": "script",\n    "path": "libpayload.js.so",\n    "on_change": "ignore"\n  },\n  "runtime": { "spawn": "main" }\n}\n' > "$ABI_DIR/libigloader.config.so"
 
       - name: Load Gadget early via smali in Application.attachBaseContext
         shell: bash
@@ -120,16 +109,13 @@ JSON
             echo "Could not find an injection point automatically"; exit 1
           fi
           echo "Injecting into: $APP_SMALI"
-
+          
           TMPF="$APP_SMALI.tmp"
           INJECTED=0
           while IFS= read -r line; do
             printf '%s\n' "$line" >> "$TMPF"
             if [ $INJECTED -eq 0 ] && printf '%s' "$line" | grep -Eq '^\s*\.prologue|^\s*invoke-super'; then
-              cat <<'SMALI' >> "$TMPF"
-    const-string v0, "igloader"
-    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
-SMALI
+              printf '    const-string v0, "igloader"\n    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V\n' >> "$TMPF"
               INJECTED=1
             fi
           done < "$APP_SMALI"
