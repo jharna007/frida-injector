@@ -1,4 +1,4 @@
-name: Frida Gadget Injector (Full Automation - Official Signer)
+name: Frida Gadget Injector (Safer Embed + Official Signer)
 
 on:
   push:
@@ -27,14 +27,11 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          # Install Python dependencies
           pip install frida-gadget
-
-          # Install apktool and its dependencies
           sudo apt-get update
-          sudo apt-get install -y default-jdk
+          sudo apt-get install -y default-jdk wget unzip
+          # Apktool
           wget https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar -O apktool.jar
-          chmod +x apktool.jar
           sudo mv apktool.jar /usr/local/bin/apktool.jar
           echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
           echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
@@ -51,41 +48,107 @@ jobs:
             -dname "CN=Android Debug,O=Android,C=US" \
             -keyalg RSA -keysize 2048 -validity 10000
 
-      - name: Create Frida Gadget Configuration File
+      - name: Download APK from URL
         run: |
-          echo '{"interaction":{"type":"listen","address":"0.0.0.0","port":27042,"on_load":"resume"},"runtime":{"spawn":"main","path":"libssl-unpinning.js.so"},"fallback":{"enabled":true,"interval":1000}}' > fg.con
-
-      - name: Download APK from Hardcoded URL
-        run: |
-          APK_URL="https://github.com/kaifcodec/Upload_apk/releases/download/v1.1.7/WinZo.apk"
+          APK_URL="https://github.com/kaifcodec/Upload_apk/releases/download/v1.1.6/instagram.apk"
           curl -L -o original.apk "$APK_URL"
 
-      - name: Run Frida Gadget injection (without signing)
-        id: frida_inject
+      - name: Decode APK
         run: |
-          frida-gadget original.apk \
-            --arch arm64 \
-            --js ssl_unpinning.js \
-            --config fg.con \
-            --custom-gadget-name stealth0.so
+          rm -rf original
+          apktool d -f -o original original.apk
 
-      - name: Align and Sign the APK with Official Tools
-        id: sign_apk
+      - name: Ensure INTERNET permission and extractNativeLibs
+        run: |
+          MANIFEST="original/AndroidManifest.xml"
+          # Add INTERNET if missing
+          if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
+            sed -i '0,/<manifest/ s//&\n    <uses-permission android:name="android.permission.INTERNET"\/>/' "$MANIFEST"
+          fi
+          # Force extractNativeLibs=true on <application ...>
+          if grep -q 'android:extractNativeLibs=' "$MANIFEST"; then
+            sed -i 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' "$MANIFEST"
+          else
+            sed -i 's/<application /<application android:extractNativeLibs="true" /' "$MANIFEST"
+          fi
+
+      - name: Embed Frida Gadget (renamed) and config (Script mode)
+        run: |
+          # Prepare library folder
+          ABI_DIR="original/lib/arm64-v8a"
+          mkdir -p "$ABI_DIR"
+
+          # Use frida-gadget to produce an .so, then rename to neutral name
+          # This produces a gadget binary libfrida-gadget.so in a dist layout; grab arm64 .so
+          frida-gadget --dump --arch arm64 --output gadget-out
+          # Copy the arm64 gadget .so (path may vary by version)
+          GADGET_SO="$(find gadget-out -type f -name '*arm64*.so' | head -n 1)"
+          cp "$GADGET_SO" "$ABI_DIR/libigloader.so"
+
+          # Place the JS payload as a fake .so next to the library (Script interaction expects this path)
+          cat > "$ABI_DIR/libpayload.js.so" <<'EOF'
+/* Minimal placeholder; real JS can be injected or replaced in CI artifacts. */
+console.log('[gadget] payload loaded');
+EOF
+
+          # Android-style config: must be named like the library with .config.so
+          cat > "$ABI_DIR/libigloader.config.so" <<'JSON'
+{
+  "interaction": {
+    "type": "script",
+    "path": "libpayload.js.so",
+    "on_change": "ignore"
+  },
+  "runtime": { "spawn": "main" }
+}
+JSON
+
+      - name: Load Gadget early via smali in Application.attachBaseContext
+        run: |
+          # Identify Application smali; replace with actual path for the app package (APP_PACKAGE).
+          # Example path: original/smali_classes2/com/instagram/app/InstagramApp.smali
+          APP_SMALI="$(grep -Rl --include '*.smali' 'Landroid/app/Application;->attachBaseContext' original/smali* | head -n 1 || true)"
+          if [ -z "$APP_SMALI" ]; then
+            echo "No Application.attachBaseContext found; attempting to inject into main Activity constructor."
+            APP_SMALI="$(grep -Rl --include '*.smali' 'Landroid/app/Activity;->onCreate' original/smali* | head -n 1 || true)"
+          fi
+          if [ -z "$APP_SMALI" ]; then
+            echo "Could not find injection point automatically"; exit 1
+          fi
+          echo "Injecting into: $APP_SMALI"
+
+          # Insert System.loadLibrary("igloader") once at the beginning of the first method body.
+          # This simplistic inserter looks for the first '.prologue' or method start and injects after it.
+          TMPF="$APP_SMALI.tmp"
+          INJECTED=0
+          while IFS= read -r line; do
+            echo "$line" >> "$TMPF"
+            if [ $INJECTED -eq 0 ] && echo "$line" | grep -q "^\\.prologue\\|^\\s*invoke-super"; then
+              cat >> "$TMPF" <<'SMALI'
+    const-string v0, "igloader"
+    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
+SMALI
+              INJECTED=1
+            fi
+          done < "$APP_SMALI"
+          mv "$TMPF" "$APP_SMALI"
+
+      - name: Rebuild APK
+        run: |
+          apktool b -f -o rebuilt.apk original
+
+      - name: Align and Sign APK
         run: |
           BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
-
-          UNALIGNED_APK="original/dist/original.apk"
-          ALIGNED_APK="original/dist/original-aligned.apk"
-
-          "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 "${UNALIGNED_APK}" "${ALIGNED_APK}"
-
+          "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 rebuilt.apk rebuilt-aligned.apk
           "${BUILD_TOOLS_PATH}/apksigner" sign --ks "${HOME}/.android/debug.keystore" \
             --ks-pass pass:android --key-pass pass:android \
-            --v1-signing-enabled true --v2-signing-enabled true \
-            "${ALIGNED_APK}"
+            --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true \
+            rebuilt-aligned.apk
+          "${BUILD_TOOLS_PATH}/apksigner" verify --verbose --print-certs rebuilt-aligned.apk
 
-      - name: Upload Frida Patched APK
+      - name: Upload Patched APK
         uses: actions/upload-artifact@v4
         with:
-          name: frida-injected-signed-apk
-          path: original/dist/original-aligned.apk
+          name: frida-gadget-script-signed-apk
+          path: rebuilt-aligned.apk
