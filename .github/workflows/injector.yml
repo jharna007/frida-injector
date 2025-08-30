@@ -78,22 +78,28 @@ jobs:
             sed -i 's/<application /<application android:extractNativeLibs="true" /' "$MANIFEST"
           fi
 
-      - name: Embed Frida Gadget (renamed) and config (Script mode)
+      - name: Download and Embed Frida Gadget (renamed) with config (Script mode)
         shell: bash
         run: |
           set -euo pipefail
           ABI_DIR="original/lib/arm64-v8a"
           mkdir -p "$ABI_DIR"
           
-          frida-gadget --dump --arch arm64 --output gadget-out
-          GADGET_SO="$(find gadget-out -type f -name '*arm64*.so' | head -n 1)"
-          if [ -z "${GADGET_SO:-}" ]; then
-            echo "Could not find arm64 gadget .so"; exit 1
-          fi
-          cp "$GADGET_SO" "$ABI_DIR/libigloader.so"
+          # Get latest Frida version and download arm64 gadget
+          FRIDA_VERSION=$(curl -s https://api.github.com/repos/frida/frida/releases/latest | grep -Po '"tag_name": "\K.*?(?=")')
+          echo "Downloading Frida Gadget version: $FRIDA_VERSION"
           
+          wget "https://github.com/frida/frida/releases/download/${FRIDA_VERSION}/frida-gadget-${FRIDA_VERSION}-android-arm64.so.xz" -O frida-gadget-arm64.so.xz
+          xz -d frida-gadget-arm64.so.xz
+          
+          # Copy with neutral name to avoid detection
+          cp frida-gadget-arm64.so "$ABI_DIR/libigloader.so"
+          rm frida-gadget-arm64.so
+          
+          # Create JS payload as fake .so
           echo "console.log('[gadget] payload loaded');" > "$ABI_DIR/libpayload.js.so"
           
+          # Create Android-style config next to the library
           printf '{\n  "interaction": {\n    "type": "script",\n    "path": "libpayload.js.so",\n    "on_change": "ignore"\n  },\n  "runtime": { "spawn": "main" }\n}\n' > "$ABI_DIR/libigloader.config.so"
 
       - name: Load Gadget early via smali in Application.attachBaseContext
