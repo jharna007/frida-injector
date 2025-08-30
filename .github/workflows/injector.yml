@@ -26,22 +26,24 @@ jobs:
           python-version: '3.10'
 
       - name: Install Dependencies
+        shell: bash
         run: |
+          set -euo pipefail
           pip install frida-gadget
           sudo apt-get update
           sudo apt-get install -y default-jdk wget unzip
-          # Apktool
           wget https://github.com/iBotPeaches/Apktool/releases/download/v2.12.0/apktool_2.12.0.jar -O apktool.jar
           sudo mv apktool.jar /usr/local/bin/apktool.jar
-          echo '#!/bin/bash' | sudo tee /usr/local/bin/apktool > /dev/null
-          echo 'java -jar /usr/local/bin/apktool.jar "$@"' | sudo tee -a /usr/local/bin/apktool > /dev/null
+          printf '#!/bin/bash\njava -jar /usr/local/bin/apktool.jar "$@"\n' | sudo tee /usr/local/bin/apktool >/dev/null
           sudo chmod +x /usr/local/bin/apktool
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Create Debug Keystore
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p ~/.android/
           keytool -genkeypair -v -keystore ~/.android/debug.keystore \
             -alias androiddebugkey -storepass android -keypass android \
@@ -49,23 +51,30 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000
 
       - name: Download APK from URL
+        shell: bash
         run: |
+          set -euo pipefail
           APK_URL="https://github.com/kaifcodec/Upload_apk/releases/download/v1.1.6/instagram.apk"
           curl -L -o original.apk "$APK_URL"
 
       - name: Decode APK
+        shell: bash
         run: |
+          set -euo pipefail
           rm -rf original
           apktool d -f -o original original.apk
 
       - name: Ensure INTERNET permission and extractNativeLibs
+        shell: bash
         run: |
+          set -euo pipefail
           MANIFEST="original/AndroidManifest.xml"
           # Add INTERNET if missing
           if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
+            # Insert right after <manifest ...>
             sed -i '0,/<manifest/ s//&\n    <uses-permission android:name="android.permission.INTERNET"\/>/' "$MANIFEST"
           fi
-          # Force extractNativeLibs=true on <application ...>
+          # Force extractNativeLibs=true
           if grep -q 'android:extractNativeLibs=' "$MANIFEST"; then
             sed -i 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' "$MANIFEST"
           else
@@ -73,25 +82,26 @@ jobs:
           fi
 
       - name: Embed Frida Gadget (renamed) and config (Script mode)
+        shell: bash
         run: |
-          # Prepare library folder
+          set -euo pipefail
           ABI_DIR="original/lib/arm64-v8a"
           mkdir -p "$ABI_DIR"
 
-          # Use frida-gadget to produce an .so, then rename to neutral name
-          # This produces a gadget binary libfrida-gadget.so in a dist layout; grab arm64 .so
+          # Dump gadget binaries and copy arm64 to a neutral name
           frida-gadget --dump --arch arm64 --output gadget-out
-          # Copy the arm64 gadget .so (path may vary by version)
           GADGET_SO="$(find gadget-out -type f -name '*arm64*.so' | head -n 1)"
+          if [ -z "${GADGET_SO:-}" ]; then
+            echo "Could not find arm64 gadget .so"; exit 1
+          fi
           cp "$GADGET_SO" "$ABI_DIR/libigloader.so"
 
-          # Place the JS payload as a fake .so next to the library (Script interaction expects this path)
+          # JS payload as fake .so (Script interaction reads this)
           cat > "$ABI_DIR/libpayload.js.so" <<'EOF'
-/* Minimal placeholder; real JS can be injected or replaced in CI artifacts. */
 console.log('[gadget] payload loaded');
 EOF
 
-          # Android-style config: must be named like the library with .config.so
+          # Android-style config next to the library; name must match libigloader.so
           cat > "$ABI_DIR/libigloader.config.so" <<'JSON'
 {
   "interaction": {
@@ -104,26 +114,26 @@ EOF
 JSON
 
       - name: Load Gadget early via smali in Application.attachBaseContext
+        shell: bash
         run: |
-          # Identify Application smali; replace with actual path for the app package (APP_PACKAGE).
-          # Example path: original/smali_classes2/com/instagram/app/InstagramApp.smali
+          set -euo pipefail
+          # Try to find Application.attachBaseContext; fallback to first Activity onCreate
           APP_SMALI="$(grep -Rl --include '*.smali' 'Landroid/app/Application;->attachBaseContext' original/smali* | head -n 1 || true)"
           if [ -z "$APP_SMALI" ]; then
-            echo "No Application.attachBaseContext found; attempting to inject into main Activity constructor."
+            echo "No Application.attachBaseContext found; trying Activity.onCreate"
             APP_SMALI="$(grep -Rl --include '*.smali' 'Landroid/app/Activity;->onCreate' original/smali* | head -n 1 || true)"
           fi
           if [ -z "$APP_SMALI" ]; then
-            echo "Could not find injection point automatically"; exit 1
+            echo "Could not find an injection point automatically"; exit 1
           fi
           echo "Injecting into: $APP_SMALI"
 
-          # Insert System.loadLibrary("igloader") once at the beginning of the first method body.
-          # This simplistic inserter looks for the first '.prologue' or method start and injects after it.
           TMPF="$APP_SMALI.tmp"
           INJECTED=0
           while IFS= read -r line; do
-            echo "$line" >> "$TMPF"
-            if [ $INJECTED -eq 0 ] && echo "$line" | grep -q "^\\.prologue\\|^\\s*invoke-super"; then
+            printf '%s\n' "$line" >> "$TMPF"
+            # Inject once after first .prologue or invoke-super
+            if [ $INJECTED -eq 0 ] && printf '%s' "$line" | grep -Eq '^\s*\.prologue|^\s*invoke-super'; then
               cat >> "$TMPF" <<'SMALI'
     const-string v0, "igloader"
     invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
@@ -134,11 +144,15 @@ SMALI
           mv "$TMPF" "$APP_SMALI"
 
       - name: Rebuild APK
+        shell: bash
         run: |
+          set -euo pipefail
           apktool b -f -o rebuilt.apk original
 
       - name: Align and Sign APK
+        shell: bash
         run: |
+          set -euo pipefail
           BUILD_TOOLS_PATH="${ANDROID_HOME}/build-tools/34.0.0"
           "${BUILD_TOOLS_PATH}/zipalign" -f -v 4 rebuilt.apk rebuilt-aligned.apk
           "${BUILD_TOOLS_PATH}/apksigner" sign --ks "${HOME}/.android/debug.keystore" \
