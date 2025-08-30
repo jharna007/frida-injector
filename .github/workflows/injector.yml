@@ -69,12 +69,9 @@ jobs:
         run: |
           set -euo pipefail
           MANIFEST="original/AndroidManifest.xml"
-          # Add INTERNET if missing
           if ! grep -q 'android.permission.INTERNET' "$MANIFEST"; then
-            # Insert right after <manifest ...>
             sed -i '0,/<manifest/ s//&\n    <uses-permission android:name="android.permission.INTERNET"\/>/' "$MANIFEST"
           fi
-          # Force extractNativeLibs=true
           if grep -q 'android:extractNativeLibs=' "$MANIFEST"; then
             sed -i 's/android:extractNativeLibs="false"/android:extractNativeLibs="true"/' "$MANIFEST"
           else
@@ -88,7 +85,6 @@ jobs:
           ABI_DIR="original/lib/arm64-v8a"
           mkdir -p "$ABI_DIR"
 
-          # Dump gadget binaries and copy arm64 to a neutral name
           frida-gadget --dump --arch arm64 --output gadget-out
           GADGET_SO="$(find gadget-out -type f -name '*arm64*.so' | head -n 1)"
           if [ -z "${GADGET_SO:-}" ]; then
@@ -96,13 +92,11 @@ jobs:
           fi
           cp "$GADGET_SO" "$ABI_DIR/libigloader.so"
 
-          # JS payload as fake .so (Script interaction reads this)
-          cat > "$ABI_DIR/libpayload.js.so" <<'EOF'
+          cat <<'EOF' > "$ABI_DIR/libpayload.js.so"
 console.log('[gadget] payload loaded');
 EOF
 
-          # Android-style config next to the library; name must match libigloader.so
-          cat > "$ABI_DIR/libigloader.config.so" <<'JSON'
+          cat <<'JSON' > "$ABI_DIR/libigloader.config.so"
 {
   "interaction": {
     "type": "script",
@@ -117,7 +111,6 @@ JSON
         shell: bash
         run: |
           set -euo pipefail
-          # Try to find Application.attachBaseContext; fallback to first Activity onCreate
           APP_SMALI="$(grep -Rl --include '*.smali' 'Landroid/app/Application;->attachBaseContext' original/smali* | head -n 1 || true)"
           if [ -z "$APP_SMALI" ]; then
             echo "No Application.attachBaseContext found; trying Activity.onCreate"
@@ -132,9 +125,8 @@ JSON
           INJECTED=0
           while IFS= read -r line; do
             printf '%s\n' "$line" >> "$TMPF"
-            # Inject once after first .prologue or invoke-super
             if [ $INJECTED -eq 0 ] && printf '%s' "$line" | grep -Eq '^\s*\.prologue|^\s*invoke-super'; then
-              cat >> "$TMPF" <<'SMALI'
+              cat <<'SMALI' >> "$TMPF"
     const-string v0, "igloader"
     invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
 SMALI
